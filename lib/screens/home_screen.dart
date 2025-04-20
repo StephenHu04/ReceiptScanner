@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
 
 enum SortOption {
   dateNewest,
@@ -44,6 +47,18 @@ class _HomeScreenState extends State<HomeScreen> {
   SortOption _currentSort = SortOption.dateNewest;
   String _searchQuery = '';
   TimeFilter _currentTimeFilter = TimeFilter.allTime;
+  ExpenseCategory _selectedCategory = ExpenseCategory.generalMerchandise;
+  int? _expandedIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _calculateTotalSpent();
+  }
+
+  void _calculateTotalSpent() {
+    _totalSpent = _expenses.fold(0.0, (sum, expense) => sum + expense.amount);
+  }
 
   String _capitalizeWords(String text) {
     if (text.isEmpty) return text;
@@ -103,7 +118,7 @@ class _HomeScreenState extends State<HomeScreen> {
   List<ExpenseEntry> get _filteredExpenses {
     if (_searchQuery.isEmpty) return _expenses;
     return _expenses.where((expense) =>
-      expense.name.toLowerCase().contains(_searchQuery.toLowerCase())
+        expense.name.toLowerCase().contains(_searchQuery.toLowerCase())
     ).toList();
   }
 
@@ -117,17 +132,17 @@ class _HomeScreenState extends State<HomeScreen> {
       );
       grouped.putIfAbsent(date, () => []).add(expense);
     }
-    
+
     // Sort expenses within each date group by name
     for (final expenses in grouped.values) {
       expenses.sort((a, b) => a.name.compareTo(b.name));
     }
-    
+
     return Map.fromEntries(
-      grouped.entries.toList()
-        ..sort((a, b) => _currentSort == SortOption.dateNewest
-            ? b.key.compareTo(a.key)
-            : a.key.compareTo(b.key))
+        grouped.entries.toList()
+          ..sort((a, b) => _currentSort == SortOption.dateNewest
+              ? b.key.compareTo(a.key)
+              : a.key.compareTo(b.key))
     );
   }
 
@@ -144,7 +159,7 @@ class _HomeScreenState extends State<HomeScreen> {
               date: expense.date,
               category: expense.category ?? ExpenseCategory.generalMerchandise,
             ));
-            _totalSpent += expense.amount;
+            _calculateTotalSpent();
           });
         },
       ),
@@ -153,8 +168,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _removeExpense(int index) {
     setState(() {
-      _totalSpent -= _expenses[index].amount;
       _expenses.removeAt(index);
+      _calculateTotalSpent();
     });
   }
 
@@ -249,6 +264,120 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<String?> _takePicture() async {
+    // Show prompt dialog first
+    final bool? shouldProceed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Take Receipt Photo'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.camera_alt,
+              size: 48,
+              color: Colors.blue,
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Make sure to:\n'
+              '• Place the receipt on a flat surface\n'
+              '• Ensure good lighting\n'
+              '• Keep the receipt within the frame\n'
+              '• Hold the camera steady',
+              textAlign: TextAlign.left,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Open Camera'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldProceed != true) return null;
+
+    final ImagePicker picker = ImagePicker();
+    final XFile? image = await picker.pickImage(
+      source: ImageSource.camera,
+      maxWidth: 600,
+      preferredCameraDevice: CameraDevice.rear,
+    );
+    
+    if (image != null) {
+      // Get the application documents directory
+      final directory = await getApplicationDocumentsDirectory();
+      final String fileName = 'receipt_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final String filePath = '${directory.path}/$fileName';
+      
+      // Copy the image to the app's documents directory
+      final savedFile = await File(image.path).copy(filePath);
+      
+      // Verify the file exists and is accessible
+      if (await savedFile.exists()) {
+        return filePath;
+      }
+    }
+    return null;
+  }
+
+  void _showReceiptImage(String imagePath) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Receipt Image',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            FutureBuilder<File>(
+              future: Future.value(File(imagePath)),
+              builder: (context, snapshot) {
+                if (snapshot.hasData && snapshot.data!.existsSync()) {
+                  return Image.file(
+                    snapshot.data!,
+                    fit: BoxFit.contain,
+                  );
+                } else {
+                  return const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(16.0),
+                      child: Text('Image not found'),
+                    ),
+                  );
+                }
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -281,7 +410,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             const Text(
-                              'Total SPENT',
+                              'Total Spent',
                               style: TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
@@ -318,47 +447,52 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: TextField(
-                    controller: _searchController,
-                    decoration: InputDecoration(
-                      hintText: 'Search expenses...',
-                      prefixIcon: const Icon(Icons.search),
-                      suffixIcon: _searchQuery.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(Icons.clear),
-                              onPressed: () {
-                                setState(() {
-                                  _searchController.clear();
-                                  _searchQuery = '';
-                                });
-                              },
-                            )
-                          : null,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                  child: SizedBox(
+                    height: 40,
+                    child: TextField(
+                      controller: _searchController,
+                      decoration: InputDecoration(
+                        hintText: 'Search expenses...',
+                        prefixIcon: const Icon(Icons.search, size: 20),
+                        suffixIcon: _searchQuery.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear, size: 20),
+                                onPressed: () {
+                                  setState(() {
+                                    _searchController.clear();
+                                    _searchQuery = '';
+                                  });
+                                },
+                              )
+                            : null,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                        filled: true,
+                        fillColor: Colors.grey[100],
+                        isDense: true,
                       ),
-                      filled: true,
-                      fillColor: Colors.grey[100],
+                      onChanged: (value) {
+                        setState(() {
+                          _searchQuery = value;
+                        });
+                      },
                     ),
-                    onChanged: (value) {
-                      setState(() {
-                        _searchQuery = value;
-                      });
-                    },
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 4),
               ],
             ),
           ),
           SliverList(
             delegate: SliverChildBuilderDelegate(
-              (context, index) {
+                  (context, index) {
                 final dates = _groupedExpenses.keys.toList();
                 final date = dates[index];
                 final expenses = _groupedExpenses[date]!;
-                
+
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -376,6 +510,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     ...expenses.map((expense) {
                       final originalIndex = _expenses.indexOf(expense);
                       final category = expense.category ?? ExpenseCategory.generalMerchandise;
+                      final isExpanded = _expandedIndex == originalIndex;
+                      
                       return Dismissible(
                         key: Key(expense.hashCode.toString()),
                         direction: DismissDirection.endToStart,
@@ -419,7 +555,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 onPressed: () {
                                   setState(() {
                                     _expenses.insert(originalIndex, expense);
-                                    _totalSpent += expense.amount;
+                                    _calculateTotalSpent();
                                   });
                                 },
                               ),
@@ -431,7 +567,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             horizontal: 16,
                             vertical: 4,
                           ),
-                          child: ListTile(
+                          child: ExpansionTile(
                             title: Text(expense.name),
                             subtitle: Container(
                               padding: const EdgeInsets.symmetric(
@@ -458,6 +594,23 @@ class _HomeScreenState extends State<HomeScreen> {
                                 fontSize: 16,
                               ),
                             ),
+                            initiallyExpanded: isExpanded,
+                            onExpansionChanged: (expanded) {
+                              setState(() {
+                                _expandedIndex = expanded ? originalIndex : null;
+                              });
+                            },
+                            shape: const RoundedRectangleBorder(
+                              borderRadius: BorderRadius.zero,
+                            ),
+                            children: [
+                              if (expense.imagePath != null)
+                                ListTile(
+                                  leading: const Icon(Icons.image),
+                                  title: const Text('View Receipt'),
+                                  onTap: () => _showReceiptImage(expense.imagePath!),
+                                ),
+                            ],
                           ),
                         ),
                       );
@@ -471,7 +624,35 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _addExpense,
+        onPressed: () {
+          showModalBottomSheet(
+            context: context,
+            builder: (context) => Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.add),
+                  title: const Text('Add Expense Manually'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _addExpense();
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.camera_alt),
+                  title: const Text('Take Receipt Photo'),
+                  onTap: () async {
+                    Navigator.pop(context);
+                    final imagePath = await _takePicture();
+                    if (imagePath != null) {
+                      _addExpenseWithImage(imagePath);
+                    }
+                  },
+                ),
+              ],
+            ),
+          );
+        },
         child: const Icon(Icons.add),
       ),
     );
@@ -492,6 +673,145 @@ class _HomeScreenState extends State<HomeScreen> {
       case TimeFilter.thisWeek:
         return 'This Week';
     }
+  }
+
+  void _addExpenseWithImage(String imagePath) {
+    final nameController = TextEditingController();
+    final amountController = TextEditingController();
+    ExpenseCategory selectedCategory = ExpenseCategory.generalMerchandise;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Add Receipt Details'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                FutureBuilder<File>(
+                  future: Future.value(File(imagePath)),
+                  builder: (context, snapshot) {
+                    if (snapshot.hasData && snapshot.data!.existsSync()) {
+                      return GestureDetector(
+                        onTap: () => _showReceiptImage(imagePath),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.file(
+                            snapshot.data!,
+                            height: 200,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      );
+                    } else {
+                      return const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(16.0),
+                          child: Text('Image not found'),
+                        ),
+                      );
+                    }
+                  },
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Receipt Name',
+                    hintText: 'e.g., Grocery Store, Restaurant',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: amountController,
+                  decoration: const InputDecoration(
+                    labelText: 'Amount',
+                    hintText: '0.00',
+                    border: OutlineInputBorder(),
+                    prefixText: '\$',
+                  ),
+                  keyboardType: TextInputType.number,
+                ),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<ExpenseCategory>(
+                  value: selectedCategory,
+                  decoration: const InputDecoration(
+                    labelText: 'Category',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: ExpenseCategory.values.map((category) {
+                    return DropdownMenuItem(
+                      value: category,
+                      child: Text(_getCategoryLabel(category)),
+                    );
+                  }).toList(),
+                  onChanged: (ExpenseCategory? newValue) {
+                    if (newValue != null) {
+                      setState(() {
+                        selectedCategory = newValue;
+                      });
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                if (nameController.text.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Please enter a name')),
+                  );
+                  return;
+                }
+
+                final amount = double.tryParse(amountController.text);
+                if (amount == null || amount <= 0) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Please enter a valid amount')),
+                  );
+                  return;
+                }
+
+                final newExpense = ExpenseEntry(
+                  name: _capitalizeWords(nameController.text),
+                  amount: amount,
+                  date: DateTime.now(),
+                  category: selectedCategory,
+                  imagePath: imagePath,
+                );
+
+                // Close the dialog first
+                Navigator.pop(context);
+
+                // Then update the state and show the success message
+                setState(() {
+                  _expenses.add(newExpense);
+                  _calculateTotalSpent();
+                  // Sort the expenses to ensure the new one appears in the correct position
+                  _expenses.sort((a, b) => b.date.compareTo(a.date));
+                });
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Receipt added successfully!'),
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              },
+              child: const Text('Save Receipt'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -612,7 +932,7 @@ class _AddExpenseSheetState extends State<AddExpenseSheet> {
                 );
                 return;
               }
-              
+
               final amount = double.tryParse(_amountController.text);
               if (amount == null || amount <= 0) {
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -679,11 +999,13 @@ class ExpenseEntry {
   final double amount;
   final DateTime date;
   final ExpenseCategory? category;
+  final String? imagePath;
 
   ExpenseEntry({
     required this.name,
     required this.amount,
     required this.date,
     this.category,
+    this.imagePath,
   });
 } 
