@@ -83,7 +83,8 @@ class _HomeScreenState extends State<HomeScreen> {
           final threeMonthsAgo = DateTime(now.year, now.month - 3, now.day);
           return expense.date.isAfter(threeMonthsAgo);
         case TimeFilter.thisMonth:
-          return expense.date.year == now.year && expense.date.month == now.month;
+          return expense.date.year == now.year &&
+              expense.date.month == now.month;
         case TimeFilter.thisWeek:
           final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
           return expense.date.isAfter(startOfWeek);
@@ -140,7 +141,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Map.fromEntries(
         grouped.entries.toList()
-          ..sort((a, b) => _currentSort == SortOption.dateNewest
+          ..sort((a, b) =>
+          _currentSort == SortOption.dateNewest
               ? b.key.compareTo(a.key)
               : a.key.compareTo(b.key))
     );
@@ -150,19 +152,21 @@ class _HomeScreenState extends State<HomeScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      builder: (context) => AddExpenseSheet(
-        onAdd: (expense) {
-          setState(() {
-            _expenses.add(ExpenseEntry(
-              name: _capitalizeWords(expense.name),
-              amount: expense.amount,
-              date: expense.date,
-              category: expense.category ?? ExpenseCategory.generalMerchandise,
-            ));
-            _calculateTotalSpent();
-          });
-        },
-      ),
+      builder: (context) =>
+          AddExpenseSheet(
+            onAdd: (expense) {
+              setState(() {
+                _expenses.add(ExpenseEntry(
+                  name: _capitalizeWords(expense.name),
+                  amount: expense.amount,
+                  date: expense.date,
+                  category: expense.category ??
+                      ExpenseCategory.generalMerchandise,
+                ));
+                _calculateTotalSpent();
+              });
+            },
+          ),
     );
   }
 
@@ -176,37 +180,41 @@ class _HomeScreenState extends State<HomeScreen> {
   void _showSortOptions() {
     showModalBottomSheet(
       context: context,
-      builder: (context) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ListTile(
-            title: const Text('Sort by'),
-            tileColor: Theme.of(context).primaryColor.withOpacity(0.1),
+      builder: (context) =>
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                title: const Text('Sort by'),
+                tileColor: Theme
+                    .of(context)
+                    .primaryColor
+                    .withOpacity(0.1),
+              ),
+              ListTile(
+                leading: const Icon(Icons.calendar_today),
+                title: const Text('Date (Newest)'),
+                selected: _currentSort == SortOption.dateNewest,
+                onTap: () {
+                  setState(() {
+                    _currentSort = SortOption.dateNewest;
+                  });
+                  Navigator.pop(context);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.calendar_today),
+                title: const Text('Date (Oldest)'),
+                selected: _currentSort == SortOption.dateOldest,
+                onTap: () {
+                  setState(() {
+                    _currentSort = SortOption.dateOldest;
+                  });
+                  Navigator.pop(context);
+                },
+              ),
+            ],
           ),
-          ListTile(
-            leading: const Icon(Icons.calendar_today),
-            title: const Text('Date (Newest)'),
-            selected: _currentSort == SortOption.dateNewest,
-            onTap: () {
-              setState(() {
-                _currentSort = SortOption.dateNewest;
-              });
-              Navigator.pop(context);
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.calendar_today),
-            title: const Text('Date (Oldest)'),
-            selected: _currentSort == SortOption.dateOldest,
-            onTap: () {
-              setState(() {
-                _currentSort = SortOption.dateOldest;
-              });
-              Navigator.pop(context);
-            },
-          ),
-        ],
-      ),
     );
   }
 
@@ -268,38 +276,39 @@ class _HomeScreenState extends State<HomeScreen> {
     // Show prompt dialog first
     final bool? shouldProceed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Take Receipt Photo'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.camera_alt,
-              size: 48,
-              color: Colors.blue,
+      builder: (context) =>
+          AlertDialog(
+            title: const Text('Take Receipt Photo'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.camera_alt,
+                  size: 48,
+                  color: Colors.blue,
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Make sure to:\n'
+                      '• Place the receipt on a flat surface\n'
+                      '• Ensure good lighting\n'
+                      '• Keep the receipt within the frame\n'
+                      '• Hold the camera steady',
+                  textAlign: TextAlign.left,
+                ),
+              ],
             ),
-            const SizedBox(height: 16),
-            const Text(
-              'Make sure to:\n'
-              '• Place the receipt on a flat surface\n'
-              '• Ensure good lighting\n'
-              '• Keep the receipt within the frame\n'
-              '• Hold the camera steady',
-              textAlign: TextAlign.left,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Open Camera'),
+              ),
+            ],
           ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Open Camera'),
-          ),
-        ],
-      ),
     );
 
     if (shouldProceed != true) return null;
@@ -310,16 +319,18 @@ class _HomeScreenState extends State<HomeScreen> {
       maxWidth: 600,
       preferredCameraDevice: CameraDevice.rear,
     );
-    
+
     if (image != null) {
       // Get the application documents directory
       final directory = await getApplicationDocumentsDirectory();
-      final String fileName = 'receipt_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final String fileName = 'receipt_${DateTime
+          .now()
+          .millisecondsSinceEpoch}.jpg';
       final String filePath = '${directory.path}/$fileName';
-      
+
       // Copy the image to the app's documents directory
       final savedFile = await File(image.path).copy(filePath);
-      
+
       // Verify the file exists and is accessible
       if (await savedFile.exists()) {
         return filePath;
@@ -331,50 +342,51 @@ class _HomeScreenState extends State<HomeScreen> {
   void _showReceiptImage(String imagePath) {
     showDialog(
       context: context,
-      builder: (context) => Dialog(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Receipt Image',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
+      builder: (context) =>
+          Dialog(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Receipt Image',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ],
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
-              ),
+                ),
+                FutureBuilder<File>(
+                  future: Future.value(File(imagePath)),
+                  builder: (context, snapshot) {
+                    if (snapshot.hasData && snapshot.data!.existsSync()) {
+                      return Image.file(
+                        snapshot.data!,
+                        fit: BoxFit.contain,
+                      );
+                    } else {
+                      return const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(16.0),
+                          child: Text('Image not found'),
+                        ),
+                      );
+                    }
+                  },
+                ),
+              ],
             ),
-            FutureBuilder<File>(
-              future: Future.value(File(imagePath)),
-              builder: (context, snapshot) {
-                if (snapshot.hasData && snapshot.data!.existsSync()) {
-                  return Image.file(
-                    snapshot.data!,
-                    fit: BoxFit.contain,
-                  );
-                } else {
-                  return const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(16.0),
-                      child: Text('Image not found'),
-                    ),
-                  );
-                }
-              },
-            ),
-          ],
-        ),
-      ),
+          ),
     );
   }
 
@@ -457,19 +469,20 @@ class _HomeScreenState extends State<HomeScreen> {
                         prefixIcon: const Icon(Icons.search, size: 20),
                         suffixIcon: _searchQuery.isNotEmpty
                             ? IconButton(
-                                icon: const Icon(Icons.clear, size: 20),
-                                onPressed: () {
-                                  setState(() {
-                                    _searchController.clear();
-                                    _searchQuery = '';
-                                  });
-                                },
-                              )
+                          icon: const Icon(Icons.clear, size: 20),
+                          onPressed: () {
+                            setState(() {
+                              _searchController.clear();
+                              _searchQuery = '';
+                            });
+                          },
+                        )
                             : null,
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12),
                         filled: true,
                         fillColor: Colors.grey[100],
                         isDense: true,
@@ -509,9 +522,10 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     ...expenses.map((expense) {
                       final originalIndex = _expenses.indexOf(expense);
-                      final category = expense.category ?? ExpenseCategory.generalMerchandise;
+                      final category = expense.category ??
+                          ExpenseCategory.generalMerchandise;
                       final isExpanded = _expandedIndex == originalIndex;
-                      
+
                       return Dismissible(
                         key: Key(expense.hashCode.toString()),
                         direction: DismissDirection.endToStart,
@@ -527,22 +541,26 @@ class _HomeScreenState extends State<HomeScreen> {
                         confirmDismiss: (direction) async {
                           return await showDialog(
                             context: context,
-                            builder: (context) => AlertDialog(
-                              title: const Text('Delete Expense'),
-                              content: Text(
-                                'Are you sure you want to delete "${expense.name}"?',
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.of(context).pop(false),
-                                  child: const Text('Cancel'),
+                            builder: (context) =>
+                                AlertDialog(
+                                  title: const Text('Delete Expense'),
+                                  content: Text(
+                                    'Are you sure you want to delete "${expense
+                                        .name}"?',
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.of(context).pop(false),
+                                      child: const Text('Cancel'),
+                                    ),
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.of(context).pop(true),
+                                      child: const Text('Delete'),
+                                    ),
+                                  ],
                                 ),
-                                TextButton(
-                                  onPressed: () => Navigator.of(context).pop(true),
-                                  child: const Text('Delete'),
-                                ),
-                              ],
-                            ),
                           );
                         },
                         onDismissed: (direction) {
@@ -597,7 +615,8 @@ class _HomeScreenState extends State<HomeScreen> {
                             initiallyExpanded: isExpanded,
                             onExpansionChanged: (expanded) {
                               setState(() {
-                                _expandedIndex = expanded ? originalIndex : null;
+                                _expandedIndex =
+                                expanded ? originalIndex : null;
                               });
                             },
                             shape: const RoundedRectangleBorder(
@@ -608,7 +627,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ListTile(
                                   leading: const Icon(Icons.image),
                                   title: const Text('View Receipt'),
-                                  onTap: () => _showReceiptImage(expense.imagePath!),
+                                  onTap: () =>
+                                      _showReceiptImage(expense.imagePath!),
                                 ),
                             ],
                           ),
@@ -627,30 +647,31 @@ class _HomeScreenState extends State<HomeScreen> {
         onPressed: () {
           showModalBottomSheet(
             context: context,
-            builder: (context) => Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.add),
-                  title: const Text('Add Expense Manually'),
-                  onTap: () {
-                    Navigator.pop(context);
-                    _addExpense();
-                  },
+            builder: (context) =>
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.add),
+                      title: const Text('Add Expense Manually'),
+                      onTap: () {
+                        Navigator.pop(context);
+                        _addExpense();
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.camera_alt),
+                      title: const Text('Take Receipt Photo'),
+                      onTap: () async {
+                        Navigator.pop(context);
+                        final imagePath = await _takePicture();
+                        if (imagePath != null) {
+                          _addExpenseWithImage(imagePath);
+                        }
+                      },
+                    ),
+                  ],
                 ),
-                ListTile(
-                  leading: const Icon(Icons.camera_alt),
-                  title: const Text('Take Receipt Photo'),
-                  onTap: () async {
-                    Navigator.pop(context);
-                    final imagePath = await _takePicture();
-                    if (imagePath != null) {
-                      _addExpenseWithImage(imagePath);
-                    }
-                  },
-                ),
-              ],
-            ),
           );
         },
         child: const Icon(Icons.add),
@@ -682,135 +703,103 @@ class _HomeScreenState extends State<HomeScreen> {
 
     showDialog(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          title: const Text('Add Receipt Details'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                FutureBuilder<File>(
-                  future: Future.value(File(imagePath)),
-                  builder: (context, snapshot) {
-                    if (snapshot.hasData && snapshot.data!.existsSync()) {
-                      return GestureDetector(
-                        onTap: () => _showReceiptImage(imagePath),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Image.file(
-                            snapshot.data!,
-                            height: 200,
-                            fit: BoxFit.cover,
+      builder: (context) =>
+          StatefulBuilder(
+            builder: (context, setStateDialog) =>
+                AlertDialog(
+                  title: const Text('Add Receipt Details'),
+                  content: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // 1) Name input
+                        TextField(
+                          controller: nameController,
+                          decoration: const InputDecoration(
+                            labelText: 'Description',
+                            border: OutlineInputBorder(),
                           ),
                         ),
-                      );
-                    } else {
-                      return const Center(
-                        child: Padding(
-                          padding: EdgeInsets.all(16.0),
-                          child: Text('Image not found'),
+                        const SizedBox(height: 12),
+
+                        // 2) Amount input
+                        TextField(
+                          controller: amountController,
+                          decoration: const InputDecoration(
+                            labelText: 'Amount',
+                            prefixText: '\$',
+                            border: OutlineInputBorder(),
+                          ),
+                          keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true),
                         ),
-                      );
-                    }
-                  },
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Receipt Name',
-                    hintText: 'e.g., Grocery Store, Restaurant',
-                    border: OutlineInputBorder(),
+                        const SizedBox(height: 12),
+
+                        // 3) Category picker (you already had this)
+                        DropdownButtonFormField<ExpenseCategory>(
+                          value: selectedCategory,
+                          items: ExpenseCategory.values.map((c) =>
+                              DropdownMenuItem(value: c, child: Text(
+                                  _getCategoryLabel(c)))
+                          ).toList(),
+                          decoration: const InputDecoration(
+                            labelText: 'Category',
+                            border: OutlineInputBorder(),
+                          ),
+                          onChanged: (c) =>
+                              setStateDialog(() => selectedCategory = c!),
+                        ),
+                      ],
+                    ),
                   ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Cancel'),
+                    ),
+                    ElevatedButton(
+                      onPressed: () {
+                        // 4) Basic validation
+                        final name = nameController.text.trim();
+                        final amtText = amountController.text.trim();
+                        final amount = double.tryParse(amtText);
+
+                        if (name.isEmpty || amount == null || amount <= 0) {
+                          // you could show an error Snackbar instead of popping
+                          ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text(
+                                  'Please enter a valid name and amount'))
+                          );
+                          return;
+                        }
+
+                        final newExpense = ExpenseEntry(
+                          name: _capitalizeWords(name),
+                          amount: amount,
+                          date: DateTime.now(),
+                          category: selectedCategory,
+                          imagePath: imagePath,
+                        );
+
+                        Navigator.pop(context);
+                        if (!mounted) return;
+
+                        setState(() {
+                          _expenses.add(newExpense);
+                          _calculateTotalSpent();
+                          _expenses.sort((a, b) => b.date.compareTo(a.date));
+                        });
+
+                        ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                                content: Text('Receipt added successfully!'))
+                        );
+                      },
+                      child: const Text('Save Receipt'),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: amountController,
-                  decoration: const InputDecoration(
-                    labelText: 'Amount',
-                    hintText: '0.00',
-                    border: OutlineInputBorder(),
-                    prefixText: '\$',
-                  ),
-                  keyboardType: TextInputType.number,
-                ),
-                const SizedBox(height: 8),
-                DropdownButtonFormField<ExpenseCategory>(
-                  value: selectedCategory,
-                  decoration: const InputDecoration(
-                    labelText: 'Category',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: ExpenseCategory.values.map((category) {
-                    return DropdownMenuItem(
-                      value: category,
-                      child: Text(_getCategoryLabel(category)),
-                    );
-                  }).toList(),
-                  onChanged: (ExpenseCategory? newValue) {
-                    if (newValue != null) {
-                      setState(() {
-                        selectedCategory = newValue;
-                      });
-                    }
-                  },
-                ),
-              ],
-            ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                if (nameController.text.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Please enter a name')),
-                  );
-                  return;
-                }
-
-                final amount = double.tryParse(amountController.text);
-                if (amount == null || amount <= 0) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Please enter a valid amount')),
-                  );
-                  return;
-                }
-
-                final newExpense = ExpenseEntry(
-                  name: _capitalizeWords(nameController.text),
-                  amount: amount,
-                  date: DateTime.now(),
-                  category: selectedCategory,
-                  imagePath: imagePath,
-                );
-
-                // Close the dialog first
-                Navigator.pop(context);
-
-                // Then update the state and show the success message
-                setState(() {
-                  _expenses.add(newExpense);
-                  _calculateTotalSpent();
-                  // Sort the expenses to ensure the new one appears in the correct position
-                  _expenses.sort((a, b) => b.date.compareTo(a.date));
-                });
-
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Receipt added successfully!'),
-                    duration: Duration(seconds: 2),
-                  ),
-                );
-              },
-              child: const Text('Save Receipt'),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
