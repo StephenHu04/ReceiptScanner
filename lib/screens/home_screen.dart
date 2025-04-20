@@ -1,5 +1,12 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:http/http.dart' as http;
+import 'package:path/path.dart' as p;
+import 'package:mime/mime.dart'; // for MIME type
+import 'package:http_parser/http_parser.dart';
 
 enum SortOption {
   dateNewest,
@@ -53,6 +60,82 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Future<void> _scanReceipt(BuildContext context) async {
+    // Request permission
+    final permissionStatus = await Permission.camera.request();
+
+    if (!permissionStatus.isGranted) {
+      // Permission denied
+      showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('Camera Permission'),
+          content: const Text(
+            'This app needs camera access to scan receipts. Please grant permission.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                openAppSettings();
+                Navigator.pop(context);
+              },
+              child: const Text('Open Settings'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    // Pick image from camera
+    final picker = ImagePicker();
+    final XFile? photo = await picker.pickImage(source: ImageSource.camera);
+
+    if (photo == null) {
+      // User cancelled
+      return;
+    }
+
+    final File imageFile = File(photo.path);
+    final String? mimeType = lookupMimeType(imageFile.path);
+
+    // Upload to backend
+    final uri = Uri.parse('https://your-backend-api.com/receipts/process');
+    final request = http.MultipartRequest('POST', uri)
+      ..files.add(await http.MultipartFile.fromPath(
+        'receipt',
+        imageFile.path,
+        contentType: mimeType != null ? MediaType.parse(mimeType) : MediaType('image', 'jpeg'),
+      ));
+
+    try {
+      final response = await request.send();
+      final responseBody = await response.stream.bytesToString();
+
+      if (response.statusCode == 200) {
+        // Success
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Receipt uploaded successfully')),
+        );
+        debugPrint('Response from backend: $responseBody');
+      } else {
+        // Failed
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Upload failed: ${response.statusCode}')),
+        );
+      }
+    } catch (e) {
+      // Error
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error uploading receipt: $e')),
+      );
+    }
+  }
+
   void _addExpense() {
     showModalBottomSheet(
       context: context,
@@ -68,6 +151,87 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
+
+  void _addExpenseMenu() {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            leading: const Icon(Icons.edit),
+            title: const Text('Enter Receipt Information Manually'),
+            onTap: () {
+              Navigator.pop(context); // Close the bottom sheet
+              _addExpense(); // Call the existing _addExpense method
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.camera_alt),
+            title: const Text('Scan Receipt with Camera'),
+            onTap: () {
+              Navigator.pop(context); // Close the bottom sheet
+              _scanReceipt(context); // Handle receipt scanning
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.camera_alt),
+            title: const Text('Choose Photo from Gallery'),
+            onTap: () {
+              Navigator.pop(context); // Close the bottom sheet
+              _choosePhoto(); // Handle receipt scanning
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _choosePhoto() async {
+    // Request permission based on Android version
+    if (Platform.isAndroid) {
+      // For Android versions below API 29 (Android 10), we need storage permission
+      if (Platform.isAndroid && (await Permission.storage.isGranted == false)) {
+        final storageStatus = await Permission.storage.request();
+        if (!storageStatus.isGranted) {
+          // If permission is denied, show a prompt to open settings
+          await openAppSettings();
+          return;
+        }
+      }
+    }
+
+    // Step 2: Pick an image from the gallery
+    final picker = ImagePicker();
+    final XFile? pickedFile = await picker.pickImage(source: ImageSource.gallery);
+
+    if (pickedFile == null) {
+      // No image selected
+      print('No image selected.');
+      return;
+    }
+
+    // Step 3: Send to backend API
+    final uri = Uri.parse('https://your-api.com/upload'); // Replace with your API endpoint
+    final request = http.MultipartRequest('POST', uri)
+      ..files.add(await http.MultipartFile.fromPath('file', pickedFile.path));
+
+    try {
+      final response = await request.send();
+
+      if (response.statusCode == 200) {
+        print('Photo uploaded successfully!');
+        final respStr = await response.stream.bytesToString();
+        print('Response: $respStr');
+      } else {
+        print('Upload failed with status: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error uploading photo: $e');
+    }
+  }
+
+
 
   void _removeExpense(int index) {
     setState(() {
@@ -393,7 +557,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _addExpense,
+        onPressed: _addExpenseMenu,
         child: const Icon(Icons.add),
       ),
     );
