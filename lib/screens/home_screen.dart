@@ -1,13 +1,33 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:flutter/services.dart';
 
 enum SortOption {
   dateNewest,
   dateOldest,
-  amountHighest,
-  amountLowest,
-  nameAZ,
-  nameZA,
+}
+
+enum TimeFilter {
+  allTime,
+  thisYear,
+  last6Months,
+  last3Months,
+  thisMonth,
+  thisWeek,
+}
+
+enum ExpenseCategory {
+  groceries,
+  dining,
+  transportation,
+  healthcare,
+  clothing,
+  electronics,
+  homeMaintenance,
+  onlineShopping,
+  travel,
+  entertainment,
+  generalMerchandise,
 }
 
 class HomeScreen extends StatefulWidget {
@@ -23,6 +43,56 @@ class _HomeScreenState extends State<HomeScreen> {
   double _totalSpent = 0.0;
   SortOption _currentSort = SortOption.dateNewest;
   String _searchQuery = '';
+  TimeFilter _currentTimeFilter = TimeFilter.allTime;
+
+  String _capitalizeWords(String text) {
+    if (text.isEmpty) return text;
+    return text.split(' ').map((word) {
+      if (word.isEmpty) return word;
+      return word[0].toUpperCase() + word.substring(1).toLowerCase();
+    }).join(' ');
+  }
+
+  double get _filteredTotalSpent {
+    final now = DateTime.now();
+    final filteredExpenses = _expenses.where((expense) {
+      switch (_currentTimeFilter) {
+        case TimeFilter.allTime:
+          return true;
+        case TimeFilter.thisYear:
+          return expense.date.year == now.year;
+        case TimeFilter.last6Months:
+          final sixMonthsAgo = DateTime(now.year, now.month - 6, now.day);
+          return expense.date.isAfter(sixMonthsAgo);
+        case TimeFilter.last3Months:
+          final threeMonthsAgo = DateTime(now.year, now.month - 3, now.day);
+          return expense.date.isAfter(threeMonthsAgo);
+        case TimeFilter.thisMonth:
+          return expense.date.year == now.year && expense.date.month == now.month;
+        case TimeFilter.thisWeek:
+          final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
+          return expense.date.isAfter(startOfWeek);
+      }
+    });
+    return filteredExpenses.fold(0.0, (sum, expense) => sum + expense.amount);
+  }
+
+  String get _timeFilterLabel {
+    switch (_currentTimeFilter) {
+      case TimeFilter.allTime:
+        return 'All Time';
+      case TimeFilter.thisYear:
+        return 'This Year';
+      case TimeFilter.last6Months:
+        return 'Last 6 Months';
+      case TimeFilter.last3Months:
+        return 'Last 3 Months';
+      case TimeFilter.thisMonth:
+        return 'This Month';
+      case TimeFilter.thisWeek:
+        return 'This Week';
+    }
+  }
 
   @override
   void dispose() {
@@ -47,9 +117,17 @@ class _HomeScreenState extends State<HomeScreen> {
       );
       grouped.putIfAbsent(date, () => []).add(expense);
     }
+    
+    // Sort expenses within each date group by name
+    for (final expenses in grouped.values) {
+      expenses.sort((a, b) => a.name.compareTo(b.name));
+    }
+    
     return Map.fromEntries(
       grouped.entries.toList()
-        ..sort((a, b) => b.key.compareTo(a.key))
+        ..sort((a, b) => _currentSort == SortOption.dateNewest
+            ? b.key.compareTo(a.key)
+            : a.key.compareTo(b.key))
     );
   }
 
@@ -60,9 +138,13 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (context) => AddExpenseSheet(
         onAdd: (expense) {
           setState(() {
-            _expenses.add(expense);
+            _expenses.add(ExpenseEntry(
+              name: _capitalizeWords(expense.name),
+              amount: expense.amount,
+              date: expense.date,
+              category: expense.category ?? ExpenseCategory.generalMerchandise,
+            ));
             _totalSpent += expense.amount;
-            _sortExpenses();
           });
         },
       ),
@@ -74,53 +156,6 @@ class _HomeScreenState extends State<HomeScreen> {
       _totalSpent -= _expenses[index].amount;
       _expenses.removeAt(index);
     });
-  }
-
-  void _sortExpenses() {
-    switch (_currentSort) {
-      case SortOption.dateNewest:
-        _expenses.sort((a, b) => b.date.compareTo(a.date));
-        break;
-      case SortOption.dateOldest:
-        _expenses.sort((a, b) => a.date.compareTo(b.date));
-        break;
-      case SortOption.amountHighest:
-        _expenses.sort((a, b) => b.amount.compareTo(a.amount));
-        break;
-      case SortOption.amountLowest:
-        _expenses.sort((a, b) => a.amount.compareTo(b.amount));
-        break;
-      case SortOption.nameAZ:
-        _expenses.sort((a, b) {
-          final nameA = a.name.trim().toLowerCase();
-          final nameB = b.name.trim().toLowerCase();
-          
-          for (var i = 0; i < nameA.length && i < nameB.length; i++) {
-            final charA = nameA[i];
-            final charB = nameB[i];
-            if (charA != charB) {
-              return charA.compareTo(charB);
-            }
-          }
-          return nameA.length.compareTo(nameB.length);
-        });
-        break;
-      case SortOption.nameZA:
-        _expenses.sort((a, b) {
-          final nameA = a.name.trim().toLowerCase();
-          final nameB = b.name.trim().toLowerCase();
-          
-          for (var i = 0; i < nameA.length && i < nameB.length; i++) {
-            final charA = nameA[i];
-            final charB = nameB[i];
-            if (charA != charB) {
-              return charB.compareTo(charA);
-            }
-          }
-          return nameB.length.compareTo(nameA.length);
-        });
-        break;
-    }
   }
 
   void _showSortOptions() {
@@ -140,7 +175,6 @@ class _HomeScreenState extends State<HomeScreen> {
             onTap: () {
               setState(() {
                 _currentSort = SortOption.dateNewest;
-                _sortExpenses();
               });
               Navigator.pop(context);
             },
@@ -152,55 +186,6 @@ class _HomeScreenState extends State<HomeScreen> {
             onTap: () {
               setState(() {
                 _currentSort = SortOption.dateOldest;
-                _sortExpenses();
-              });
-              Navigator.pop(context);
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.attach_money),
-            title: const Text('Amount (Highest)'),
-            selected: _currentSort == SortOption.amountHighest,
-            onTap: () {
-              setState(() {
-                _currentSort = SortOption.amountHighest;
-                _sortExpenses();
-              });
-              Navigator.pop(context);
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.attach_money),
-            title: const Text('Amount (Lowest)'),
-            selected: _currentSort == SortOption.amountLowest,
-            onTap: () {
-              setState(() {
-                _currentSort = SortOption.amountLowest;
-                _sortExpenses();
-              });
-              Navigator.pop(context);
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.sort_by_alpha),
-            title: const Text('Name (A-Z)'),
-            selected: _currentSort == SortOption.nameAZ,
-            onTap: () {
-              setState(() {
-                _currentSort = SortOption.nameAZ;
-                _sortExpenses();
-              });
-              Navigator.pop(context);
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.sort_by_alpha),
-            title: const Text('Name (Z-A)'),
-            selected: _currentSort == SortOption.nameZA,
-            onTap: () {
-              setState(() {
-                _currentSort = SortOption.nameZA;
-                _sortExpenses();
               });
               Navigator.pop(context);
             },
@@ -208,6 +193,60 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
     );
+  }
+
+  String _getCategoryLabel(ExpenseCategory category) {
+    switch (category) {
+      case ExpenseCategory.groceries:
+        return 'Groceries';
+      case ExpenseCategory.dining:
+        return 'Dining';
+      case ExpenseCategory.transportation:
+        return 'Transportation';
+      case ExpenseCategory.healthcare:
+        return 'Healthcare';
+      case ExpenseCategory.clothing:
+        return 'Clothing';
+      case ExpenseCategory.electronics:
+        return 'Electronics';
+      case ExpenseCategory.homeMaintenance:
+        return 'Home Maintenance';
+      case ExpenseCategory.onlineShopping:
+        return 'Online Shopping';
+      case ExpenseCategory.travel:
+        return 'Travel';
+      case ExpenseCategory.entertainment:
+        return 'Entertainment';
+      case ExpenseCategory.generalMerchandise:
+        return 'General Merchandise';
+    }
+  }
+
+  Color _getCategoryColor(ExpenseCategory category) {
+    switch (category) {
+      case ExpenseCategory.groceries:
+        return Colors.green;
+      case ExpenseCategory.dining:
+        return Colors.orange;
+      case ExpenseCategory.transportation:
+        return Colors.blue;
+      case ExpenseCategory.healthcare:
+        return Colors.red;
+      case ExpenseCategory.clothing:
+        return Colors.purple;
+      case ExpenseCategory.electronics:
+        return Colors.indigo;
+      case ExpenseCategory.homeMaintenance:
+        return Colors.brown;
+      case ExpenseCategory.onlineShopping:
+        return Colors.teal;
+      case ExpenseCategory.travel:
+        return Colors.amber;
+      case ExpenseCategory.entertainment:
+        return Colors.pink;
+      case ExpenseCategory.generalMerchandise:
+        return Colors.grey;
+    }
   }
 
   @override
@@ -238,16 +277,37 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Total SPENT',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'Total SPENT',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            DropdownButton<TimeFilter>(
+                              value: _currentTimeFilter,
+                              items: TimeFilter.values.map((filter) {
+                                return DropdownMenuItem(
+                                  value: filter,
+                                  child: Text(_getTimeFilterLabel(filter)),
+                                );
+                              }).toList(),
+                              onChanged: (TimeFilter? newValue) {
+                                if (newValue != null) {
+                                  setState(() {
+                                    _currentTimeFilter = newValue;
+                                  });
+                                }
+                              },
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          '\$${_totalSpent.toStringAsFixed(2)}',
+                          '\$${_filteredTotalSpent.toStringAsFixed(2)}',
                           style: const TextStyle(
                             fontSize: 24,
                             fontWeight: FontWeight.bold,
@@ -315,6 +375,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     ...expenses.map((expense) {
                       final originalIndex = _expenses.indexOf(expense);
+                      final category = expense.category ?? ExpenseCategory.generalMerchandise;
                       return Dismissible(
                         key: Key(expense.hashCode.toString()),
                         direction: DismissDirection.endToStart,
@@ -359,7 +420,6 @@ class _HomeScreenState extends State<HomeScreen> {
                                   setState(() {
                                     _expenses.insert(originalIndex, expense);
                                     _totalSpent += expense.amount;
-                                    _sortExpenses();
                                   });
                                 },
                               ),
@@ -373,6 +433,24 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           child: ListTile(
                             title: Text(expense.name),
+                            subtitle: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: _getCategoryColor(category)
+                                    .withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                _getCategoryLabel(category),
+                                style: TextStyle(
+                                  color: _getCategoryColor(category),
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
                             trailing: Text(
                               '\$${expense.amount.toStringAsFixed(2)}',
                               style: const TextStyle(
@@ -398,6 +476,23 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
+
+  String _getTimeFilterLabel(TimeFilter filter) {
+    switch (filter) {
+      case TimeFilter.allTime:
+        return 'All Time';
+      case TimeFilter.thisYear:
+        return 'This Year';
+      case TimeFilter.last6Months:
+        return 'Last 6 Months';
+      case TimeFilter.last3Months:
+        return 'Last 3 Months';
+      case TimeFilter.thisMonth:
+        return 'This Month';
+      case TimeFilter.thisWeek:
+        return 'This Week';
+    }
+  }
 }
 
 class AddExpenseSheet extends StatefulWidget {
@@ -416,6 +511,8 @@ class _AddExpenseSheetState extends State<AddExpenseSheet> {
   final _nameController = TextEditingController();
   final _amountController = TextEditingController();
   DateTime _selectedDate = DateTime.now();
+  String? _amountError;
+  ExpenseCategory _selectedCategory = ExpenseCategory.generalMerchandise;
 
   @override
   Widget build(BuildContext context) {
@@ -439,12 +536,50 @@ class _AddExpenseSheetState extends State<AddExpenseSheet> {
           const SizedBox(height: 16),
           TextField(
             controller: _amountController,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: 'Amount',
-              border: OutlineInputBorder(),
+              border: const OutlineInputBorder(),
               prefixText: '\$',
+              errorText: _amountError,
             ),
-            keyboardType: TextInputType.number,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+            ],
+            onChanged: (value) {
+              setState(() {
+                if (value.isEmpty) {
+                  _amountError = null;
+                } else if (double.tryParse(value) == null) {
+                  _amountError = 'Please enter a valid number';
+                } else if (double.parse(value) <= 0) {
+                  _amountError = 'Amount must be greater than 0';
+                } else {
+                  _amountError = null;
+                }
+              });
+            },
+          ),
+          const SizedBox(height: 16),
+          DropdownButtonFormField<ExpenseCategory>(
+            value: _selectedCategory,
+            decoration: const InputDecoration(
+              labelText: 'Category',
+              border: OutlineInputBorder(),
+            ),
+            items: ExpenseCategory.values.map((category) {
+              return DropdownMenuItem(
+                value: category,
+                child: Text(_getCategoryLabel(category)),
+              );
+            }).toList(),
+            onChanged: (ExpenseCategory? newValue) {
+              if (newValue != null) {
+                setState(() {
+                  _selectedCategory = newValue;
+                });
+              }
+            },
           ),
           const SizedBox(height: 16),
           Row(
@@ -471,18 +606,30 @@ class _AddExpenseSheetState extends State<AddExpenseSheet> {
           const SizedBox(height: 16),
           ElevatedButton(
             onPressed: () {
-              if (_nameController.text.isNotEmpty &&
-                  _amountController.text.isNotEmpty) {
-                final amount = double.tryParse(_amountController.text) ?? 0.0;
-                widget.onAdd(
-                  ExpenseEntry(
-                    name: _nameController.text,
-                    amount: amount,
-                    date: _selectedDate,
-                  ),
+              if (_nameController.text.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Please enter a name')),
                 );
-                Navigator.pop(context);
+                return;
               }
+              
+              final amount = double.tryParse(_amountController.text);
+              if (amount == null || amount <= 0) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Please enter a valid amount')),
+                );
+                return;
+              }
+
+              widget.onAdd(
+                ExpenseEntry(
+                  name: _nameController.text,
+                  amount: amount,
+                  date: _selectedDate,
+                  category: _selectedCategory,
+                ),
+              );
+              Navigator.pop(context);
             },
             child: const Text('Add Expense'),
           ),
@@ -490,6 +637,33 @@ class _AddExpenseSheetState extends State<AddExpenseSheet> {
         ],
       ),
     );
+  }
+
+  String _getCategoryLabel(ExpenseCategory category) {
+    switch (category) {
+      case ExpenseCategory.groceries:
+        return 'Groceries';
+      case ExpenseCategory.dining:
+        return 'Dining';
+      case ExpenseCategory.transportation:
+        return 'Transportation';
+      case ExpenseCategory.healthcare:
+        return 'Healthcare';
+      case ExpenseCategory.clothing:
+        return 'Clothing';
+      case ExpenseCategory.electronics:
+        return 'Electronics';
+      case ExpenseCategory.homeMaintenance:
+        return 'Home Maintenance';
+      case ExpenseCategory.onlineShopping:
+        return 'Online Shopping';
+      case ExpenseCategory.travel:
+        return 'Travel';
+      case ExpenseCategory.entertainment:
+        return 'Entertainment';
+      case ExpenseCategory.generalMerchandise:
+        return 'General Merchandise';
+    }
   }
 
   @override
@@ -504,10 +678,12 @@ class ExpenseEntry {
   final String name;
   final double amount;
   final DateTime date;
+  final ExpenseCategory? category;
 
   ExpenseEntry({
     required this.name,
     required this.amount,
     required this.date,
+    this.category,
   });
 } 
